@@ -24,6 +24,17 @@ contract Canvas {
         return pixels[_index(x, y)];
     }
 
+    function getAllPixels() public view returns (uint24[] memory) {
+        uint32 total = uint32(width) * height;
+        uint24[] memory allPixels = new uint24[](total);
+
+        for (uint32 i = 0; i < total; i++) {
+            allPixels[i] = pixels[i];
+        }
+
+        return allPixels;
+    }
+
     function _index(uint16 x, uint16 y) internal view returns (uint32) {
         require(x < width && y < height, "Invalid coordinates");
         return uint32(y) * width + x;
