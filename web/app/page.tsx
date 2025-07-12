@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Canvas } from '@/components/canvas/Canvas'
 import { ColorPicker } from '@/components/ui/ColorPicker'
-import { TxHistory } from '@/components/ui/TxHistory'
+import { TransactionHistory } from '@/components/TransactionHistory'
 import { LiveUsers } from '@/components/ui/LiveUsers'
 import { History, Users } from 'lucide-react'
 
@@ -60,7 +60,7 @@ export default function Home() {
               
               {(showHistory || showUsers) && (
                 <div className="max-h-48 overflow-y-auto">
-                  {showHistory && <TxHistory />}
+                  {showHistory && <TransactionHistory />}
                   {showUsers && <LiveUsers />}
                 </div>
               )}
@@ -103,7 +103,7 @@ export default function Home() {
 
           {/* Desktop Right Panel - History/Users */}
           <div className="hidden lg:block space-y-6">
-            {showHistory && <TxHistory />}
+            {showHistory && <TransactionHistory />}
             {showUsers && <LiveUsers />}
             
             {/* Info Panel */}

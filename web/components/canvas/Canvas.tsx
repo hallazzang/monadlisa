@@ -23,6 +23,7 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
   const [pendingPixels, setPendingPixels] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState(0)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Read canvas dimensions
   const { data: width } = useReadContract({
@@ -40,10 +41,14 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
     data: allPixelsData, 
     isLoading: isLoadingPixels,
     error: pixelsError,
-    isError: isPixelsError 
+    isError: isPixelsError,
+    refetch: refetchPixels 
   } = useReadContract({
     ...CANVAS_CONTRACT,
     functionName: 'getAllPixels',
+    query: {
+      refetchInterval: false, // We'll handle manual refreshing
+    }
   })
 
   // Write contract hook for drawing pixels
@@ -152,8 +157,13 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
       const h = Number(height)
       setCanvasSize({ width: w, height: h })
       
-      console.log('Loading canvas state from getAllPixels()...')
-      setLoadingProgress(50)
+      const isInitialLoad = isLoading
+      if (isInitialLoad) {
+        console.log('Loading canvas state from getAllPixels()...')
+        setLoadingProgress(50)
+      } else {
+        console.log('Refreshing canvas state from getAllPixels()...')
+      }
       
       // Initialize canvas with data from getAllPixels()
       const newPixels = Array(h).fill(null).map(() => 
@@ -178,20 +188,24 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
           }
         })
         
-        console.log(`Loaded ${coloredPixelsCount} colored pixels from contract`)
+        console.log(`${isInitialLoad ? 'Loaded' : 'Refreshed'} ${coloredPixelsCount} colored pixels from contract`)
       } else {
         console.log('allPixelsData is not an array or is empty')
       }
       
       setPixels(newPixels)
-      setLoadingProgress(100)
       
-      setTimeout(() => {
-        setIsLoading(false)
-        console.log('Canvas state loaded from getAllPixels()')
-      }, 200)
+      if (isInitialLoad) {
+        setLoadingProgress(100)
+        setTimeout(() => {
+          setIsLoading(false)
+          console.log('Canvas state loaded from getAllPixels()')
+        }, 200)
+      } else {
+        console.log('Canvas state refreshed from getAllPixels()')
+      }
     }
-  }, [width, height, allPixelsData, isLoadingPixels, isPixelsError])
+  }, [width, height, allPixelsData, isLoadingPixels, isPixelsError, isLoading])
 
   // Show loading state while contract data is being fetched
   useEffect(() => {
@@ -221,6 +235,18 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
 
     return () => clearTimeout(timeout)
   }, [isLoading, width, height])
+
+  // Periodic refresh to keep canvas in sync (every 10 seconds)
+  useEffect(() => {
+    if (!isLoading && width && height) {
+      const interval = setInterval(() => {
+        console.log('Refreshing canvas state from contract...')
+        refetchPixels()
+      }, 30000) // 30 seconds
+
+      return () => clearInterval(interval)
+    }
+  }, [isLoading, width, height, refetchPixels])
 
   const getPixelKey = (x: number, y: number) => `${x}-${y}`
 
