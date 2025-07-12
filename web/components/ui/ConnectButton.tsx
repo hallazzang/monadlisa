@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { useAccount, useConnect, useDisconnect } from 'wagmi'
-import { Wallet, LogOut } from 'lucide-react'
+import { useAccount, useConnect, useDisconnect } from 'wagmi';
+import { Wallet, LogOut } from 'lucide-react';
 
 export function ConnectButton() {
-  const { address, isConnected } = useAccount()
-  const { connect, connectors } = useConnect()
-  const { disconnect } = useDisconnect()
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
 
   const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`
-  }
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
   if (isConnected && address) {
     return (
@@ -28,7 +28,7 @@ export function ConnectButton() {
           <span>Disconnect</span>
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -40,9 +40,9 @@ export function ConnectButton() {
           className="flex items-center space-x-2 px-6 py-3 bg-monad-gradient hover:scale-105 text-white rounded-lg transition-all duration-200 font-medium monad-glow"
         >
           <Wallet size={16} />
-          <span>Connect Wallet</span>
+          <span>{connector.name}</span>
         </button>
       ))}
     </div>
-  )
+  );
 }

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useWatchContractEvent, useAccount } from 'wagmi'
 import { Users, Circle } from 'lucide-react'
+import { CANVAS_CONTRACT } from '@/lib/contract'
 
 interface User {
   address: string
@@ -10,32 +12,43 @@ interface User {
 
 export function LiveUsers() {
   const [users, setUsers] = useState<User[]>([])
-  const [userCount, setUserCount] = useState(0)
+  const { address: connectedAddress } = useAccount()
 
+  // Watch for new PixelDrawn events to track active users
+  useWatchContractEvent({
+    ...CANVAS_CONTRACT,
+    eventName: 'PixelDrawn',
+    onLogs(logs) {
+      logs.forEach((log) => {
+        const userAddress = log.args.user as string
+        if (userAddress) {
+          setUsers(prev => {
+            // Remove existing entry for this user
+            const filtered = prev.filter(u => u.address.toLowerCase() !== userAddress.toLowerCase())
+            // Add updated entry at the beginning
+            return [{ address: userAddress, lastSeen: Date.now() }, ...filtered].slice(0, 10) // Keep last 10 users
+          })
+        }
+      })
+    },
+  })
+
+  // Add connected user to the list
   useEffect(() => {
-    // Mock live users for demo
-    const mockUsers: User[] = [
-      {
-        address: '0xabcd1234567890abcdef1234567890abcdef1234',
-        lastSeen: Date.now()
-      },
-      {
-        address: '0xbcde2345678901bcdef2345678901bcdef2345678',
-        lastSeen: Date.now() - 1000 * 30
-      },
-      {
-        address: '0xcdef3456789012cdef3456789012cdef3456789',
-        lastSeen: Date.now() - 1000 * 60
-      }
-    ]
-    
-    setUsers(mockUsers)
-    setUserCount(mockUsers.length + Math.floor(Math.random() * 10))
+    if (connectedAddress) {
+      setUsers(prev => {
+        const filtered = prev.filter(u => u.address.toLowerCase() !== connectedAddress.toLowerCase())
+        return [{ address: connectedAddress, lastSeen: Date.now() }, ...filtered].slice(0, 10)
+      })
+    }
+  }, [connectedAddress])
 
-    // Simulate user activity updates
+  // Clean up old users (remove users inactive for more than 10 minutes)
+  useEffect(() => {
     const interval = setInterval(() => {
-      setUserCount(prev => prev + Math.floor(Math.random() * 3) - 1)
-    }, 5000)
+      const tenMinutesAgo = Date.now() - 10 * 60 * 1000
+      setUsers(prev => prev.filter(user => user.lastSeen > tenMinutesAgo))
+    }, 30000) // Check every 30 seconds
 
     return () => clearInterval(interval)
   }, [])
@@ -61,7 +74,7 @@ export function LiveUsers() {
           </div>
           <div className="flex items-center space-x-1">
             <Circle size={8} className="text-green-500 fill-current" />
-            <span className="text-sm text-gray-200">{userCount}</span>
+            <span className="text-sm text-gray-200">{users.length}</span>
           </div>
         </h3>
       </div>

@@ -42,18 +42,18 @@ export function ColorPicker({
   const [customColor, setCustomColor] = useState('#000000');
 
   return (
-    <div className="monad-glass rounded-xl p-6 border border-white/10">
+    <div className="monad-glass rounded-xl p-4 md:p-6 border border-white/10">
       <div className="mb-3">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+        <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4 flex items-center space-x-2">
           <div className="w-2 h-2 bg-monad-primary rounded-full"></div>
           <span>Color Palette</span>
         </h3>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 md:gap-2">
           {PRESET_COLORS.map((color) => (
             <button
               key={color}
               className={cn(
-                'w-10 h-10 rounded-lg border-2 cursor-pointer hover:scale-110 transition-all duration-200',
+                'w-8 h-8 md:w-10 md:h-10 rounded-lg border-2 cursor-pointer hover:scale-110 transition-all duration-200',
                 selectedColor === color 
                   ? 'border-monad-primary shadow-lg shadow-monad-primary/30' 
                   : 'border-white/20 hover:border-white/40'
@@ -66,8 +66,8 @@ export function ColorPicker({
         </div>
       </div>
 
-      <div className="border-t border-white/10 pt-5 mt-5">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Custom Color</h3>
+      <div className="border-t border-white/10 pt-4 md:pt-5 mt-4 md:mt-5">
+        <h3 className="text-xs md:text-sm font-medium text-gray-300 mb-3">Custom Color</h3>
         <div className="flex items-center space-x-3">
           <input
             type="color"
@@ -76,7 +76,7 @@ export function ColorPicker({
               setCustomColor(e.target.value);
               onColorSelect(e.target.value);
             }}
-            className="w-10 h-10 rounded-lg border border-white/20 cursor-pointer bg-transparent"
+            className="w-8 h-8 md:w-10 md:h-10 rounded-lg border border-white/20 cursor-pointer bg-transparent"
           />
           <input
             type="text"
@@ -90,22 +90,22 @@ export function ColorPicker({
                 }
               }
             }}
-            className="flex-1 px-3 py-2 text-sm border border-white/20 bg-white/5 text-white rounded-lg transition-all duration-200 focus:border-monad-primary focus:outline-none backdrop-blur-sm"
+            className="flex-1 px-2 md:px-3 py-2 text-xs md:text-sm border border-white/20 bg-white/5 text-white rounded-lg transition-all duration-200 focus:border-monad-primary focus:outline-none backdrop-blur-sm"
             placeholder="#000000"
           />
         </div>
       </div>
 
-      <div className="border-t border-white/10 pt-5 mt-5">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">
+      <div className="border-t border-white/10 pt-4 md:pt-5 mt-4 md:mt-5">
+        <h3 className="text-xs md:text-sm font-medium text-gray-300 mb-3">
           Selected Color
         </h3>
         <div className="flex items-center space-x-3">
           <div
-            className="w-12 h-8 rounded-lg border border-white/20 shadow-lg"
+            className="w-10 h-6 md:w-12 md:h-8 rounded-lg border border-white/20 shadow-lg"
             style={{ backgroundColor: selectedColor }}
           />
-          <span className="text-sm text-gray-300 font-mono">{selectedColor}</span>
+          <span className="text-xs md:text-sm text-gray-300 font-mono">{selectedColor}</span>
         </div>
       </div>
     </div>
