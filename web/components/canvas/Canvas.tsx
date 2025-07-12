@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWatchContractEvent, useWaitForTransactionReceipt } from 'wagmi'
 import toast from 'react-hot-toast'
 import { Pixel } from './Pixel'
-import { MONAD_LISA_CONTRACT, hexToColorInt, colorIntToHex } from '@/lib/contract'
-
-const CANVAS_SIZE = 64
+import { CANVAS_CONTRACT, hexToColorInt, colorIntToHex } from '@/lib/contract'
 
 interface PixelData {
   color: string
@@ -20,20 +18,35 @@ interface CanvasProps {
 
 export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
   const { isConnected } = useAccount()
-  const [pixels, setPixels] = useState<PixelData[][]>(
-    Array(CANVAS_SIZE).fill(null).map(() => 
-      Array(CANVAS_SIZE).fill(null).map(() => ({ color: '#ffffff' }))
-    )
-  )
+  const [canvasSize, setCanvasSize] = useState({ width: 64, height: 64 })
+  const [pixels, setPixels] = useState<PixelData[][]>([])
   const [pendingPixels, setPendingPixels] = useState<Set<string>>(new Set())
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState(0)
 
-  // Read initial canvas state
-  const { data: canvasData } = useReadContract({
-    ...MONAD_LISA_CONTRACT,
-    functionName: 'getCanvasState',
+  // Read canvas dimensions
+  const { data: width } = useReadContract({
+    ...CANVAS_CONTRACT,
+    functionName: 'width',
   })
 
-  // Write contract hook for updating pixels
+  const { data: height } = useReadContract({
+    ...CANVAS_CONTRACT,
+    functionName: 'height',
+  })
+
+  // Read all pixels at once
+  const { 
+    data: allPixelsData, 
+    isLoading: isLoadingPixels,
+    error: pixelsError,
+    isError: isPixelsError 
+  } = useReadContract({
+    ...CANVAS_CONTRACT,
+    functionName: 'getAllPixels',
+  })
+
+  // Write contract hook for drawing pixels
   const { writeContract, data: hash, isPending, error } = useWriteContract()
 
   // Wait for transaction receipt
@@ -41,10 +54,10 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
     hash,
   })
 
-  // Watch for pixel update events
+  // Watch for pixel drawn events
   useWatchContractEvent({
-    ...MONAD_LISA_CONTRACT,
-    eventName: 'PixelUpdated',
+    ...CANVAS_CONTRACT,
+    eventName: 'PixelDrawn',
     onLogs(logs) {
       logs.forEach((log) => {
         const { x, y, color } = log.args
@@ -52,8 +65,10 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
           const pixelKey = `${x}-${y}`
           setPixels(prev => {
             const newPixels = [...prev]
-            newPixels[y] = [...newPixels[y]]
-            newPixels[y][x] = { color: colorIntToHex(color) }
+            if (newPixels[y] && newPixels[y][x]) {
+              newPixels[y] = [...newPixels[y]]
+              newPixels[y][x] = { color: colorIntToHex(color) }
+            }
             return newPixels
           })
           // Remove from pending when confirmed on chain
@@ -70,43 +85,142 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
   // Handle transaction state changes
   useEffect(() => {
     if (error) {
-      // Transaction was rejected/cancelled
-      setPendingPixels(new Set()) // Clear all pending pixels
+      setPendingPixels(new Set())
       toast.error('Transaction cancelled')
     }
   }, [error])
 
   useEffect(() => {
     if (isConfirmed) {
-      toast.success('Transaction confirmed!')
+      toast.success('Pixel painted successfully!')
     }
   }, [isConfirmed])
 
   useEffect(() => {
     if (receiptError) {
-      setPendingPixels(new Set()) // Clear all pending pixels
+      setPendingPixels(new Set())
       toast.error('Transaction failed')
     }
   }, [receiptError])
 
-  // Initialize canvas from contract data
+  // Debug contract call states
   useEffect(() => {
-    if (canvasData && Array.isArray(canvasData)) {
-      const newPixels = Array(CANVAS_SIZE).fill(null).map(() => 
-        Array(CANVAS_SIZE).fill(null).map(() => ({ color: '#ffffff' }))
+    console.log('Contract call states:', {
+      width: width?.toString(),
+      height: height?.toString(),
+      isLoadingPixels,
+      isPixelsError,
+      pixelsError: pixelsError?.message,
+      allPixelsDataLength: allPixelsData ? Array.isArray(allPixelsData) ? allPixelsData.length : 'not array' : 'undefined'
+    })
+  }, [width, height, isLoadingPixels, isPixelsError, pixelsError, allPixelsData])
+
+  // Handle getAllPixels error - could mean function doesn't exist on deployed contract
+  useEffect(() => {
+    if (isPixelsError && pixelsError) {
+      console.error('Error loading pixels:', pixelsError)
+      
+      // Check if it's a function not found error
+      const errorMessage = pixelsError.message || ''
+      if (errorMessage.includes('getAllPixels') || errorMessage.includes('function selector')) {
+        console.warn('getAllPixels function not found on contract - using empty canvas')
+        toast.error('Contract does not have getAllPixels function - starting with empty canvas')
+      } else {
+        toast.error('Failed to load canvas data from contract')
+      }
+      
+      // Fall back to empty canvas if getAllPixels fails
+      if (width && height) {
+        const w = Number(width)
+        const h = Number(height)
+        setCanvasSize({ width: w, height: h })
+        
+        const newPixels = Array(h).fill(null).map(() => 
+          Array(w).fill(null).map(() => ({ color: '#000000' }))
+        )
+        setPixels(newPixels)
+        setIsLoading(false)
+        setLoadingProgress(100)
+      }
+    }
+  }, [isPixelsError, pixelsError, width, height])
+
+  // Initialize canvas when dimensions and pixel data are loaded
+  useEffect(() => {
+    if (width && height && allPixelsData !== undefined && !isLoadingPixels && !isPixelsError) {
+      const w = Number(width)
+      const h = Number(height)
+      setCanvasSize({ width: w, height: h })
+      
+      console.log('Loading canvas state from getAllPixels()...')
+      setLoadingProgress(50)
+      
+      // Initialize canvas with data from getAllPixels()
+      const newPixels = Array(h).fill(null).map(() => 
+        Array(w).fill(null).map(() => ({ color: '#000000' }))
       )
       
-      canvasData.forEach((colorInt, index) => {
-        const x = index % CANVAS_SIZE
-        const y = Math.floor(index / CANVAS_SIZE)
-        if (y < CANVAS_SIZE && x < CANVAS_SIZE) {
-          newPixels[y][x] = { color: colorIntToHex(Number(colorInt)) }
-        }
-      })
+      if (allPixelsData && Array.isArray(allPixelsData)) {
+        let coloredPixelsCount = 0
+        console.log(`Processing ${allPixelsData.length} pixels from contract`)
+        
+        allPixelsData.forEach((colorInt, index) => {
+          const x = index % w
+          const y = Math.floor(index / w)
+          
+          if (y < h && x < w) {
+            const color = Number(colorInt) === 0 ? '#000000' : colorIntToHex(Number(colorInt))
+            newPixels[y][x] = { color }
+            
+            if (Number(colorInt) !== 0) {
+              coloredPixelsCount++
+            }
+          }
+        })
+        
+        console.log(`Loaded ${coloredPixelsCount} colored pixels from contract`)
+      } else {
+        console.log('allPixelsData is not an array or is empty')
+      }
       
       setPixels(newPixels)
+      setLoadingProgress(100)
+      
+      setTimeout(() => {
+        setIsLoading(false)
+        console.log('Canvas state loaded from getAllPixels()')
+      }, 200)
     }
-  }, [canvasData])
+  }, [width, height, allPixelsData, isLoadingPixels, isPixelsError])
+
+  // Show loading state while contract data is being fetched
+  useEffect(() => {
+    if (isLoadingPixels) {
+      setLoadingProgress(20)
+    }
+  }, [isLoadingPixels])
+
+  // Timeout fallback - if loading takes too long, fall back to empty canvas
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (isLoading && width && height) {
+        console.warn('Loading timeout - falling back to empty canvas')
+        const w = Number(width)
+        const h = Number(height)
+        setCanvasSize({ width: w, height: h })
+        
+        const newPixels = Array(h).fill(null).map(() => 
+          Array(w).fill(null).map(() => ({ color: '#000000' }))
+        )
+        setPixels(newPixels)
+        setIsLoading(false)
+        setLoadingProgress(100)
+        toast.error('Loading took too long - started with empty canvas')
+      }
+    }, 10000) // 10 second timeout
+
+    return () => clearTimeout(timeout)
+  }, [isLoading, width, height])
 
   const getPixelKey = (x: number, y: number) => `${x}-${y}`
 
@@ -121,7 +235,6 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
       return
     }
 
-    // Check if this specific pixel is already pending
     if (pendingPixels.has(pixelKey)) {
       return
     }
@@ -131,23 +244,43 @@ export function Canvas({ selectedColor, onPixelUpdate }: CanvasProps) {
     const colorInt = hexToColorInt(selectedColor)
     
     writeContract({
-      ...MONAD_LISA_CONTRACT,
-      functionName: 'setPixelColor',
+      ...CANVAS_CONTRACT,
+      functionName: 'drawPixel',
       args: [x, y, colorInt],
     })
 
     onPixelUpdate?.(x, y, selectedColor)
-    toast.success(`Transaction submitted for pixel (${x}, ${y})`)
-  }, [isConnected, selectedColor, isPending, isConfirming, writeContract, onPixelUpdate])
+    toast.success(`Drawing pixel (${x}, ${y})...`)
+  }, [isConnected, selectedColor, isPending, isConfirming, writeContract, onPixelUpdate, pendingPixels])
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center w-full h-full p-2">
+        <div className="monad-glass border border-white/20 shadow-2xl canvas-glow rounded-xl p-8">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-8 h-8 border-2 border-monad-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="text-white text-sm">Loading canvas with getAllPixels()...</div>
+            <div className="w-full bg-white/20 rounded-full h-2">
+              <div 
+                className="bg-monad-primary h-2 rounded-full transition-all duration-300"
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
+            </div>
+            <div className="text-gray-300 text-xs">{loadingProgress}% loaded</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex justify-center items-center w-full h-full p-2">
       <div 
         className="grid monad-glass border border-white/20 shadow-2xl canvas-glow rounded-xl overflow-hidden"
         style={{ 
-          gridTemplateColumns: `repeat(${CANVAS_SIZE}, minmax(0, 1fr))`,
-          width: 'min(calc(100vw - max(620px, 40px)), calc(100vh - 200px))',
-          height: 'min(calc(100vw - max(620px, 40px)), calc(100vh - 200px))',
+          gridTemplateColumns: `repeat(${canvasSize.width}, minmax(0, 1fr))`,
+          width: 'min(calc(100vw - max(720px, 40px)), calc(100vh - 200px))',
+          height: 'min(calc(100vw - max(720px, 40px)), calc(100vh - 200px))',
           minWidth: '320px',
           minHeight: '320px',
           aspectRatio: '1'

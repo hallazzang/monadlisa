@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useWatchContractEvent } from 'wagmi'
 import { ExternalLink, Clock } from 'lucide-react'
+import { CANVAS_CONTRACT, colorIntToHex } from '@/lib/contract'
 
 interface Transaction {
   id: string
@@ -16,29 +18,42 @@ interface Transaction {
 export function TxHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
 
+  // Watch for new PixelDrawn events and add them to history
+  useWatchContractEvent({
+    ...CANVAS_CONTRACT,
+    eventName: 'PixelDrawn',
+    onLogs(logs) {
+      logs.forEach((log) => {
+        const { user, x, y, color } = log.args
+        if (user && x !== undefined && y !== undefined && color !== undefined) {
+          const newTx: Transaction = {
+            id: log.transactionHash || `${Date.now()}-${Math.random()}`,
+            hash: log.transactionHash || '',
+            user: user,
+            x: Number(x),
+            y: Number(y),
+            color: colorIntToHex(Number(color)),
+            timestamp: Date.now()
+          }
+          
+          setTransactions(prev => [newTx, ...prev.slice(0, 19)]) // Keep last 20 transactions
+        }
+      })
+    },
+  })
+
   useEffect(() => {
-    // Mock transactions for demo
-    const mockTxs: Transaction[] = [
-      {
-        id: '1',
-        hash: '0x1234567890abcdef1234567890abcdef12345678',
-        user: '0xabcd1234567890abcdef1234567890abcdef1234',
-        x: 32,
-        y: 32,
-        color: '#FF0000',
-        timestamp: Date.now() - 1000 * 60 * 5
-      },
-      {
-        id: '2',
-        hash: '0x2345678901bcdef12345678901bcdef123456789',
-        user: '0xbcde2345678901bcdef2345678901bcdef2345678',
-        x: 31,
-        y: 32,
-        color: '#00FF00',
-        timestamp: Date.now() - 1000 * 60 * 10
-      }
-    ]
-    setTransactions(mockTxs)
+    // Add a placeholder transaction to show the component works
+    const placeholderTx: Transaction = {
+      id: 'placeholder',
+      hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      user: '0x0000000000000000000000000000000000000000',
+      x: 0,
+      y: 0,
+      color: '#6c54f8',
+      timestamp: Date.now() - 1000 * 60 * 2
+    }
+    setTransactions([placeholderTx])
   }, [])
 
   const formatAddress = (addr: string) => {

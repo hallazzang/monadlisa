@@ -2,12 +2,6 @@ import { createConfig, http } from 'wagmi'
 import { defineChain } from 'viem'
 import { metaMask, walletConnect, coinbaseWallet } from 'wagmi/connectors'
 
-declare global {
-  interface Window {
-    ethereum?: any
-  }
-}
-
 // Define Monad testnet chain
 export const monadTestnet = defineChain({
   id: 10143,
